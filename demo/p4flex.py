@@ -128,12 +128,13 @@ class NaFlex:
     #--------------------------------------- 
     # Creates the volume based on name and size
     #--------------------------------------- 
-    def volume_create(self, name, size, junction_path):
+    def volume_create(self, name, size, junction_path, uid, gid):
 	api = NaElement("volume-create")
         api.child_add_string("containing-aggr-name", self.aggr)
         api.child_add_string("size", size)
         api.child_add_string("volume", name)
-        # api.child_add_string("junction-active", "true")
+        api.child_add_string("user-id", uid)
+        api.child_add_string("group-id", uid)
 
         # add junction_path
         api.child_add_string("junction-path", junction_path)
@@ -990,16 +991,25 @@ class Flex:
 
 	message  = self.print_banner()
 
-#       # Check for 'admin' permission
-#       if not self.permission():
-#           print("action: REJECT")
-#           message += "ERROR: You don't have permission for this operation.\n"
-#           print("message: \"%s\"" % message)
-#           return
+	#---------------------------------------  
+	#       CUSTOMIZE SECURITY CONTROLS AS NEEDED
+	#---------------------------------------  
+	#       Check for 'admin' permission - the assumption is that only certain
+	#       p4 users are allowed to create new volumes.  For now the code is
+	#       commented out, which essentially allows any user to create volumes
+	#       if not self.permission():
+	#           print("action: REJECT")
+	#           message += "ERROR: You don't have permission for this operation.\n"
+	#           print("message: \"%s\"" % message)
+	#           return
         
         # Get options (set defaults) 
-        vname = ""
-        size = "1G"
+        vname         = ""
+        size          = "1G"
+        volume_owner  = ""
+        junction_path = ""
+
+	# parse the command line options
         for o in self.opts:
             if o.startswith('-d'):
                 del_name = o[2:]
@@ -1007,6 +1017,12 @@ class Flex:
                 return
             if o.startswith('-s'):
                 size = o[2:]
+            if o.startswith('-j'):
+                junction_path = o[2:]
+            if o.startswith('-u'):
+		# if running sudo, user name is not set right in python
+		# allow user to pass in a value
+                volume_owner = o[2:]
             else:
                 vname = o
             
@@ -1027,15 +1043,30 @@ class Flex:
 
 	# NOTE: volumes will be created by project admins, so they will be mounted to the
 	# mount_base directory as specified in the cfg file
-	junction_path = netapp.mount_base + "/" + vname 
+	if not junction_path:
+	    junction_path = netapp.mount_base + "/" + vname 
+
+	#--------------------------------------- 
+	# get current users name and
+	# make sure user has a directory at mount point
+	#--------------------------------------- 
+	# clone_owner is not passed on the cmd line, then just take
+	# the value from the OS.  Note if run as sudo, this will not the
+	# the current user, but instead the user to launch sudo
+	if not volume_owner:
+            volume_owner = self.call.getUser()
+
+        # get user id and group id. These are used to set proper ownership of
+	# the new volume
+        uid = pwd.getpwnam(volume_owner).pw_uid
+        gid = pwd.getpwnam(volume_owner).pw_gid
 
         
         # Create NetApp volume
         try:  
-            netapp.volume_create(vname, size, junction_path)
+            netapp.volume_create(vname, size, junction_path, uid, gid)
 
             # Set file ownership of newly created volume.
-            user = self.call.getUser()
             #self.chown(user, junction_path)
 
             print("action: RESPOND")
@@ -1157,11 +1188,17 @@ class Flex:
             print("message: \"%s\"" % message)
             return     
         
-#       if not self.permission():
-#           print("action: REJECT")
-#           message += "ERROR You don't have permission for this operation."
-#           print("message: \"%s\"" % message)
-#           return        
+	#---------------------------------------  
+	#       CUSTOMIZE SECURITY CONTROLS AS NEEDED
+	#---------------------------------------  
+	#       Check for 'admin' permission - the assumption is that only certain
+	#       p4 users are allowed to create/delete snapshots.  For now the code is
+	#       commented out, which essentially allows any user to create/delete snapshots
+	#       if not self.permission():
+	#           print("action: REJECT")
+	#           message += "ERROR You don't have permission for this operation."
+	#           print("message: \"%s\"" % message)
+	#           return        
 
         # check to verify that the volume and snapshot exist before cloning
         if (netapp.snapshot_exists(volume_name, snapshot_name) == True):
@@ -1255,10 +1292,11 @@ class Flex:
     #---------------------------------------  
     def clone(self):
         # Get options 
-        vname       = ""
-        sname       = ""
-        cname       = ""
-        clone_owner = ""
+        vname         = ""
+        sname         = ""
+        cname         = ""
+        clone_owner   = ""
+        junction_path = ""
 
 	# process command options
         for o in self.opts:
@@ -1277,6 +1315,8 @@ class Flex:
 		# if running sudo, user name is not set right in python
 		# allow user to pass in a value
                 clone_owner = o[2:]
+            if o.startswith('-j'):
+                junction_path = o[2:]
             else:
 		# flexclone name
                 cname = o
@@ -1311,7 +1351,6 @@ class Flex:
         
         # NetApp/Perforce connection as Caller
         netapp = NaFlex()
-        p4 = self.call.getP4()
 
 
 	#--------------------------------------- 
@@ -1322,7 +1361,7 @@ class Flex:
 	# the value from the OS.  Note if run as sudo, this will not the
 	# the current user, but instead the user to launch sudo
 	if not clone_owner:
-	    clone_owner = getpass.getuser()
+            clone_owner = self.call.getUser()
 
 
 	#--------------------------------------- 
@@ -1333,7 +1372,8 @@ class Flex:
 
 	# NOTE: clones will be created by users, so they will be mounted to the
 	# mount_user vs the mount_base
-	junction_path = netapp.mount_users + "/" + clone_owner + "/" + cname 
+	if not junction_path:
+	    junction_path = netapp.mount_users + "/" + clone_owner + "/" + cname 
 
 	# create banner message
 	message  = self.print_banner()
@@ -1371,32 +1411,6 @@ class Flex:
             print("message: \"%s\"" % message) 
 
 
-#           # Verify parent client exists
-#           parent_client_name = FLEX_SNAP + vname + ":" + sname
-#           list = p4.run_clients("-e", parent_client_name)
-#           if len(list) != 1:
-#               print("action: REJECT")
-#               message += "ERROR Flex parent %s does not exist.\n" % parent_client_name
-#               print("message: \"%s\"" % message)
-#               return
-#                       
-#           # Clone client workspace
-#           clone_client_name = FLEX_CLONE + cname
-#           p4.client = clone_client_name
-#           clone_client = p4.fetch_client("-t", parent_client_name, clone_client_name)
-#           clone_client['Root'] = path
-#           #clone_client['Options'] = clone_client['Options'].replace(" unlocked", " locked")
-#           p4.save_client(clone_client)
-#           
-#           # Generate P4CONFIG file
-#           self.p4config(path, clone_client_name)
-#       
-#           # Populate have list
-#           p4.run_sync("-k", "//" + clone_client_name + "/...@" + parent_client_name)
-#           
-#       
-#           msg = clone_client_name + ". Mounted on " + path + "."
-        
         except P4Exception:
             print("action: RESPOND")
             message += '\n'.join(p4.errors)
@@ -1682,7 +1696,7 @@ class Flex:
             "\n"
             "DESCRIPTION\n"
 	    "    Create Volume\n"
-            "      p4 flex volume -s <vol size[M, G]> <volume name>\n"
+            "      p4 flex volume -s <vol size[M, G]> [-u <volume owner>] [-j <junction_path>] <volume name>\n"
 	    "    Delete Volume\n"
             "      p4 flex volume -d <volume name>\n"
 	    "    List Volumes\n"
@@ -1700,7 +1714,7 @@ class Flex:
             "      p4 flex ls             -V <volume name (optional)>\n"
 	    "\n"
 	    "    Create FlexClone (aka clone)\n"
-            "      p4 flex clone -V <volume> -S <snapshot name> -u <cloan owner (opt)> <clone name>\n"
+            "      p4 flex clone -V <volume> -S <snapshot name> [-u <clone owner>] [-j <junction_path>] <clone name>\n"
 	    "    Delete FlexClone\n"
             "      p4 flex clone -d <clone name>\n"
 	    "    List FlexClones\n"
@@ -1711,6 +1725,9 @@ class Flex:
             "EXAMPLES\n"
             "    Create a new 10GB volume called 'android_builds'\n"
 	    "      %> p4 flex volume -s 10G android_builds\n"
+            "    Create a new 20GB volume called 'android_nightly_builds'\n"
+            "      junctioned at a specific location and with a different directory name.\n"
+	    "      %> p4 flex volume -s 20G -j /ce_project/android/android_builds android_nighly_builds\n"
 	    "\n"
 	    "    Create a snapshot for volume 'android_builds' called 'android_builds_snap1'\n"
 	    "      %> p4 flex snapshot -V android_builds android_builds_snap1\n"

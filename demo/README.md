@@ -43,9 +43,9 @@ CLIENT:
 
 The p4 flex script is written in python and is run in behalf of the user by the p4broker. The p4 flex consists of the following files:
 
-- broker.cfg - p4 broker configuration file that defines the ports and location of flex.py script  
-- flex.cfg - p4 flex configuration file that defines the variables needed to run p4 flex such as p4 admin user information and NetApp admin user information
-- flex.py - python script that provides the functionality to create template, create clone and delete Perforce workspaces quickly
+- p4flex_broker.cfg - p4 broker configuration file that defines the ports and location of flex.py script  
+- p4flex.cfg - p4 flex configuration file that defines the variables needed to run p4 flex such as p4 admin user information and NetApp admin user information
+- p4flex.py - python script that provides the functionality to create template, create clone and delete Perforce workspaces quickly
 
 ## Setup and Installation ##
 
@@ -58,7 +58,7 @@ The setup and install is expected to be run by IT administrators who manages the
 	 - NetApp Manageability SDK.  Download from this site:
 		 - [http://mysupport.netapp.com/NOW/cgi-bin/software?product=NetApp+Manageability+SDK&platform=All+Platforms](http://mysupport.netapp.com/NOW/cgi-bin/software?product=NetApp+Manageability+SDK&platform=All+Platforms)
 	 - P4 Flex script from Perforce workshop.
-		 - [https://swarm.workshop.perforce.com/projects/perforce-software-p4flexclone/](https://swarm.workshop.perforce.com/projects/perforce-software-p4flexclone/)
+		 - [https://swarm.workshop.perforce.com/projects/netapp-p4flex/](https://swarm.workshop.perforce.com/projects/netapp-p4flex/files/)
 
 	 
 2. Install. 
@@ -71,8 +71,8 @@ The setup and install is expected to be run by IT administrators who manages the
 
 	 - Uzip NetApp Manageability in /usr/local/lib 
 	 
-			cd /usr/local/lib
-			unzip netapp-manageability-sdk-5.3.1.zip
+			find a spare directoryt directory and unzip netapp-manageability-sdk-5.3.1.zip
+			cp -r netapp-manageability-sdk-5.3.1 /usr/local/lib/    (this is the location specified in p4flex.py)
 
 3.  Copy the broker.cfg in the same location as where the Perforce configuration files are usually located (ie. /opt/perforce/servers/p4broker-master or /etc/perforce)
 
@@ -139,36 +139,36 @@ The setup and install is expected to be run by IT administrators who manages the
 ## Commands ##
 Below is the output of "p4 flex help".  For examples of usage, please refer to the Workflow in the next section.
 
-    (FlexClone)
+SYNOPSIS
+    p4 flex [command] [command options]
 
-    flex -- Perforce FlexClone operations
+DESCRIPTION
+    Create Volume
+      p4 flex volume -s <vol size[M, G]> <volume name>
+    Delete Volume
+      p4 flex volume -d <volume name>
+    List Volumes
+      p4 flex volumes
+      p4 flex list_volumes
+      p4 flex lv
 
-    p4 flex volume -s size[M, G] name
-    p4 flex volume -d name
-    p4 flex volumes
+    Create Snapshot
+      p4 flex snapshot -V <volume volume> [-c client] <snapshot name>
+    Delete Snapshot
+      p4 flex snapshot -V <volume name> -d <snapshot name>
+    List Available Snapshots (with parent volume)
+      p4 flex snapshots      -V <volume name (optional)>
+      p4 flex list_snapshots -V <volume name (optional)>
+      p4 flex ls             -V <volume name (optional)>
 
-    p4 flex snapshot -V volume [-c client] name
-    p4 flex snapshots
-
-    p4 flex clone -V volume -S parent name
-    p4 flex clone -d name
-    p4 flex clones [-a]
-
-        'p4 flex volume' will create a new volume. The '-d' flag will
-        delete the volume and associated snapshots. 
-
-        'p4 flex volumes' will display a list of all volumes.
-
-        'p4 flex snapshot' will create a new snapshot.
-
-        'p4 flex snapshots' will display a list of all flex snapshots.
-
-        'p4 flex clone' will create a new flex clone. The '-d' flag will
-        delete the flex clone and associated client.
-
-        'p4 flex clones' will display a list of all flex clones owned by that
-        user. The '-a' flag will list all flex clones globally.
-
+    Create FlexClone (aka clone)
+      p4 flex clone -V <volume> -S <snapshot name> -u <cloan owner (opt)> <clone name>
+    Delete FlexClone
+      p4 flex clone -d <clone name>
+    List FlexClones
+      p4 flex clones -V <volume name (optional)> [-a]
+      p4 flex list_clones -V <volume name (optional)> [-a]
+      p4 flex lc -V <volume name (optional)> [-a]
 
 ## Workflow  ##
 
@@ -210,9 +210,10 @@ For P4 flex commands to work, the following is required:
 
 		p4 flex clone -V projA -P snapA wsA
 
-4. When users are done with the workspace, P4 users can remove the cloned workspace. 
+4. When users are done with the workspace, P4 users can remove the cloned workspace, followed by the snapshots if they will not be used again. 
 
 		p4 flex clone -d wsA
+		p4 flex snapshot -V projA -d snapA
 
 5. P4 flex admin is the only user allowed to delete the volume template since deleting volume will delete all snapshots/template.  This command will fail if there are cloned workspace associated with this volume.
 

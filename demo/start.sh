@@ -1,4 +1,4 @@
-#!/bin/csh -f
+#!/bin/sh -f
 ################################################################################
 # Perforce and Perforce Broker start-up script
 #
