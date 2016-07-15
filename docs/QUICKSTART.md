@@ -1,5 +1,5 @@
 ################################################################################
-# CodeEasy QuickStart Guide
+# Perforce P4 Flex QuickStart Guide
 ################################################################################
 
 ****************************************
@@ -10,31 +10,29 @@ multimedia assets, video game art, and firmware designs, etc, is the ability
 to get a quick copy of source and build assets. By using NetApp Snapshot 
 and FlexClone technologies  a new workspace can be created in minutes instead of hours.
 
-I want to introduce you to CodeEasy, NetApp's methodology for DevOps. CodeEasy
+I want to introduce you to Perforce P4 Flex, NetApp's methodology for DevOps. P4 Flex
 utilizes NetApp's FlexClone technology to save TB of Developer workspaces and
 save developers hours of time by reducing the time to checkout and build their
-workspaces.  NetApp's own internal DevOps team has been using CodeEasy for 7
-years and we have recently packaged up CodeEasy into an Toolkit for
-easy adoption by our customers.
+workspaces.  NetApp's own internal DevOps team has been using FlexClone technology
+in thier software build/release flow for over 7 years and we have recently packaged up 
+P4 Flex into an Toolkit for easy adoption by our customers.
  
-CodeEasy is a methodology for DevOps which utilizes NetApp?s SnapShot and FlexClone 
+P4 Flex is a methodology for DevOps which utilizes NetApp?s SnapShot and FlexClone 
 technologies to dramatically save developer checkout and build time while also 
-significantly decreasing storage usage. The CodeEasy Toolkit utilizes the 
+significantly decreasing storage usage. The P4 Flex Toolkit utilizes the 
 NetApp Manageabilitys SDK to automate the steps required to create and manage 
-developer FlexClone workspaces.  The best thing is CodeEasy fits into most DevOps 
+developer FlexClone workspaces.  The best thing is P4 Flex fits into most DevOps 
 environments with little to no changes.  
 
-The CodeEasy Toolkit is so easy, that within 2 hours , you can see both the time 
-and storage savings found by utilizing NetApp technologies.  By trying a few scripts 
-from any code management tool (git, svn, perforce or any home grown system), and 
-using NetApp?s FlexClone technology (which you already use), we can accelerate 
+The P4 Flex broker is so easy, that within 2 hours , you can see both the time 
+and storage savings found by utilizing NetApp technologies.  The P4 Flex broker can accelerate 
 dev-to-production cycles, and minimize the resources needed for every dev/test environment, 
 lowering the toll on the storage system and allowing you to run more such systems in 
 parallel. It also makes cleanup much faster and tighter. 
 
 A few examples: 
-- NetApp's internal SW organization has been using CodeEasy for over 7 year.  
-  Our figures show that using CodeEast saves roughly 100 man years per year.
+- NetApp's internal SW organization has been using FlexClones in their Dev flow for over 7 year.  
+  Our figures show that using FlexClones saves roughly 100 man years per year.
 
 - A Silicon Valley network chip manufacturer was able to reduce their checkout and build time 
   from about 55 minutes to 5 minutes and at the save time save an average of 200GB 
@@ -43,54 +41,162 @@ A few examples:
 ****************************************
   Scope 
 ****************************************
-The CodeEasy Toolkit scripts are an open-source shared with the developer community to refine and customized. Each development environment is unique and may have requirements of security, control, workflow, etc. Thus this script is meant to be only as a starting reference which can be enhanced to support requirements of your specific development environment.
+The P4 Flex Toolkit scripts are an open-source shared with the developer community to refine and customized. Each development environment is unique and may have requirements of security, control, workflow, etc. Thus this script is meant to be only as a starting reference which can be enhanced to support requirements of your specific development environment.
 
 Support for this script is through the NetApp community forums. Questions and issues should be posted there for further guidance.  
 
 ****************************************
   Requirements  
 ****************************************
-In order to be able to utilize CodeEasy Toolkit the following is required:
+Requirements
 
-- cDot 8.2 or later (7-mode is not supported)
+In order to be able to utilize P4 Flex the following is required:
+
+- Python 2.6 or later (Python 2.7 recommended)
+- P4 Python 2.6 or later APIs (Python 2.7 recommended)
+- ONTAP 8.2 or later (7-mode is not supported)
 - NetApp Manageability Software Development Kit (NMSDK) 5.3.x or later
+
 
 ****************************************
   Support 
 ****************************************
-Currently the CodeEasy Toolkit is only supported for Unix environments and NFS.
+Currently P4 Flex is only supported for Unix environments and NFS.
+
+In order to be able to utilize P4 Flex Toolkit the following is required:
+
 
 ****************************************
-  Installation
+## Assumptions ##
 ****************************************
-    STEP 1: Download NetApp Managability SDK 
-	The SDK can be found on the mysupport.netapp.com 
-	Downloads -> Software -> NetApp Manageability SDK
-	Select "All Platforms" -> Go!
-	Select "NetApp Manageability SDK 5.4" -> View & Download
 
-	After clicking thru the EULA etc, you will get a file netapp-manageability-sdk-5.4.zip
+To use P4 flex, the following are assumed.
 
-    STEP 2: Place the CodeEasy Toolkit and the SDK next to each other.
-	%> cd <workspace>
-	%> unzip netapp-manageability-sdk-5.4.zip
+SERVER:
 
-    STEP 3: Download and untar the CodeEasy Toolkit
-	%> tar -zxvf CodeEasy_1.x.x.tgz
+- P4D Server is installed and running
+- P4Broker installed
+- LDAP is running or an existence of user accounts and authentication management.
+- NetApp Cluster Mode Storage Data ONTAP 8.x is used with FlexClone and NFS license enabled
+ 
+CLIENT:
 
-    The final directory structure should look something like.
-    <workspace>/
-    	netapp-manageability-sdk-5.4/
-	CodeEasy_1.x.x/
+- NFS Client is running on host in order to NFS mount NetApp storage and volume 
+- Netapp filer mounted on client box
+- The "p4 client" is installed.
 
-    The CodeEasy Perl scripts assume the SDK is at the same level as the Toolkit.
-    This can be change by editing the .pl script if a different location
-    is desired.
+****************************************
+## Components ##
+****************************************
 
-    NOTE: If the SDK is installed in a different location, edit the path in
-    the CeCommon.pm file to use the correct path.
-    =>         use lib "$FindBin::Bin/../../netapp-manageability-sdk-5.4/lib/perl/NetApp";
-    Or Edit  # use lib "<your_full_path>/netapp-manageability-sdk-5.4/lib/perl/NetApp";
+The p4 flex script is written in python and is run in behalf of the user by the p4broker. The p4 flex consists of the following files:
+
+- p4flex_broker.cfg - p4 broker configuration file that defines the ports and location of flex.py script  
+- p4flex.cfg - p4 flex configuration file that defines the variables needed to run p4 flex such as p4 admin user information and NetApp admin user information
+- p4flex.py - python script that provides the functionality to create template, create clone and delete Perforce workspaces quickly
+
+
+****************************************
+## Setup and Installation
+****************************************
+    STEP 1: Download and install the NetApp Managability SDK 
+	a. The SDK can be found on the mysupport.netapp.com 
+	   Downloads -> Software -> NetApp Manageability SDK
+	   Select "All Platforms" -> Go!
+	   Select "NetApp Manageability SDK 5.5" -> View & Download
+
+	   After clicking thru the EULA etc, you will get a file netapp-manageability-sdk-5.5.zip
+
+        b. Unzip the NMSDK in /usr/local/lib
+	   find a spare directoryt directory and unzip netapp-manageability-sdk-5.5.zip
+	   %> cp -r netapp-manageability-sdk-5.5 /usr/local/lib/    (this is the location specified in p4flex.py)
+
+    STEP 2: Download and install the Perforce broker components
+	a. Download P4 Python APIs based on your Linux and architecture (ie. perforce-p4python-python*). 
+           Follow instructions on how to setup the linux repositories to pull the APIs from Perforce 
+           from the link below:
+           http://package.perforce.com/
+
+        b. Download the P4 broker (ie. perforce-broker) if not yet installed. 
+           Use same same site defined above. 
+
+        c. P4 Python APIs and p4 Broker use yum install or apt-install after repositories are set. For example, RHEL 7:
+			sudo yum install perforce-p4python-python2.7
+		
+			sudo yum install perforce-broker
+
+
+    STEP 3: Download the Perforce P4 flex scripts from Swarm
+           P4 Flex scripts from Perforce workshop. Download all files or just the zip file.
+           https://swarm.workshop.perforce.com/projects/netapp-p4flex/
+
+    STEP 4.  
+        a. Copy the broker.cfg in the same location as where the Perforce configuration files are 
+           usually located (ie. /opt/perforce/servers/p4broker-master or /etc/perforce)
+           OR: you can find a sample broker.cfg in the P4 Flex download at demo/broker.cfg
+
+        b. Modify the broker.cfg. The parameters to modify in the broker.cfg include:
+	- target = *port of p4d*;
+	- listen = *port of p4broker*;
+	- directory = *P4ROOT*;
+	- execute = *location of flex.py script*;
+   
+     STEP 5. Start the p4broker using the broker.cfg as "perforce" or perforce admin user.
+        There is a 'demo/start.sh' script which can be used to start the p4broker.
+        The script is useful for understanding how to start and stop the service. 
+
+	If running p4broker as a unix service, modify /etc/perforce/p4dctl.conf.d/p4broker-master.conf to point to the appropriate p4broker config file (broker.cfg).:
+	
+	```
+	sudo p4dctl start p4broker-master
+	```
+
+	Manually:
+
+	```
+	p4broker -c /etc/perforce/p4flex/broker.cfg -d
+	```
+      STEP 6. Setup P4 access controls
+        The P4 access controls provide a mechanism for controlling access to who can run certain P4 Flex 
+        operations.  For instance you may want to restrict volume and snapshot creation to a 'build' user
+        or a 'perforce' admin user.  But then you might allow any user to create and delete flexclones.
+
+        NOTE: this QUICKSTART does not go into detail on how to setup Perforce admin permissions.  
+        The following is just a simple example approach.
+ 
+        Create a p4 super admin user.  The "flex" is a P4 super user and will be running the p4broker 
+        commands. Thus as "perforce" or 'devops' or admin user of perforce process do the following:
+   
+		su - perforce
+		export P4PORT=1667
+		export P4USER=perforce
+		p4 login
+		p4 user -f flex
+		p4 passwd flex
+		p4 protect
+		
+		Add the following line before super user perforce in protections file:
+				super user flex * //...
+		
+      STEP 7. Modify the flex.cfg file with information relating to P4 Flex and NetApp admin.  
+        The flex.cfg file is read by the flex.py process and provides configuration information
+        for accessing the NetApp filer and other parameters. The is a sample demo/flex.cfg file provided.
+
+        You will need a IT/Storage/Perforce admin to help fill in the following information.
+        The parameters to modify include:
+	- port: *port of p4broker*
+	- passwd: *password of "flex" admin*
+	- server: *IP address or qualified name of NetApp filer data lif*
+	- admin_user: *admin access nam to NetApp filer*
+	- admin_passwd:*admin password of NetApp filer*
+	- vserver: *name of vserver created that would have volume templates and clones*
+	- aggr: *aggregate that would contain the volume templates and clones*
+	- mount_base: *directory where the NetApp filer root will be mounted on*
+	
+	Optional:
+	- snap: *prefix of snapshot name. default is flexSnap_*
+	- clone: *prefix of clone name. default is flexClone_*
+
     
 
 ****************************************
@@ -107,7 +213,8 @@ Currently the CodeEasy Toolkit is only supported for Unix environments and NFS.
     Add the following line - then exit.  
 	# add sudo permissions for user 'devops'
 	# this will enable user to run command without requiring a password.
-	devops  ALL=(ALL)       NOPASSWD: ALL
+	devops     ALL=(ALL)       NOPASSWD: ALL
+	perforce   ALL=(ALL)       NOPASSWD: ALL
 
     NOTE: there might be more restrictive sudo settings.  For simplicity
     the above setting allow full sudo access.
@@ -130,7 +237,7 @@ command does not work, then CeChownFile.pl will not work either.
     To enable filer access via the NetApp Manageability SDK vserver
     permissions must be setup to enable 'ontapi' and 'ssh' access permissions.
 
-    Read the file ONTAPI_SETUP file in the CodeEasy/docs directory for full
+    Read the file ONTAPI_SETUP file in the P4 Flex/docs directory for full
     instructions.
 
     Example: CREATE A USER ACCOUNT "devops" FOR ONTAPI ON THE CLUSTER VSERVER
@@ -190,28 +297,26 @@ command does not work, then CeChownFile.pl will not work either.
 
 
 ****************************************
-  Setup and Test CodeEasy Script
+  Setup and Test P4 Flex Script
 ****************************************
 
     ----------------------------------------
-    Edit CeInit.pm
+    Edit flex.cfg
     ----------------------------------------
-    Open and edit the file CeInit.pm
+    Open and edit the file demo/flex.cfg
 
-    The CeInit.pm file contains all the default values for UNIX and vserver
+    The flex.cfg file contains all the default values for UNIX and vserver
     setup.  The file is well commented, so read thru the file and edit each
     line as required to localize the script to your environment. 
 
     ----------------------------------------
-    Test the CodeEasy Scripts 
+    Test the P4 Flex Scripts 
     ----------------------------------------
-    The CeCreateVolume.pl, CeCreateSnapshot.pl and CeCreateFlexclone.pl
-    scripts all have a -test|-t option which should be used to check basic
-    connectivity to the vserver
+    Make sure basic filer connections work.  The following example will connect to the filer
+    and then list the available volumes.
 
     Example:
-    %> cd <codeeasy dir>/src
-    %> ./CeCreateSnapshot -test
+    %> p4 flex volumes
 	INFO  (CeCreateSnapshot.pl): Connecting to storage controler/vserver
 		vserver        = sv5-devops-01
 		transport_type = HTTP
@@ -220,7 +325,7 @@ command does not work, then CeChownFile.pl will not work either.
 
     Resolve Errors
     If the test option returns an error, most likely it is due to misconfigured options in the 
-    CeInit.pm file. Check that the vserver user login has both ontapi and ssh access permissions 
+    flex.cfg file. Check that the vserver user login has both ontapi and ssh access permissions 
     enabled.  
 
 
@@ -234,6 +339,41 @@ command does not work, then CeChownFile.pl will not work either.
     ----------------------------------------
     Setup Steps
     ----------------------------------------
+    Step #0: Check if the 'p4 flex help' is working.
+        %> p4 flex help
+
+SYNOPSIS
+    p4 flex [command] [command options]
+
+DESCRIPTION
+    Create Volume
+      p4 flex volume -s <vol size[M, G]> <volume name>
+    Delete Volume
+      p4 flex volume -d <volume name>
+    List Volumes
+      p4 flex volumes
+      p4 flex list_volumes
+      p4 flex lv
+
+    Create Snapshot
+      p4 flex snapshot -V <volume volume> [-c client] <snapshot name>
+    Delete Snapshot
+      p4 flex snapshot -V <volume name> -d <snapshot name>
+    List Available Snapshots (with parent volume)
+      p4 flex snapshots      -V <volume name (optional)>
+      p4 flex list_snapshots -V <volume name (optional)>
+      p4 flex ls             -V <volume name (optional)>
+
+    Create FlexClone (aka clone)
+      p4 flex clone -V <volume> -S <snapshot name> -u <cloan owner (opt)> <clone name>
+    Delete FlexClone
+      p4 flex clone -d <clone name>
+    List FlexClones
+      p4 flex clones -V <volume name (optional)> [-a]
+      p4 flex list_clones -V <volume name (optional)> [-a]
+      p4 flex lc -V <volume name (optional)> [-a]
+
+
     Step #1A: Mount Junction Path
 	      New volumes and flexclones will use junction paths relative to
 	      this mount point. 
@@ -251,7 +391,7 @@ command does not work, then CeChownFile.pl will not work either.
 	sudu permissions setup to perform various operations - which needs to be
 	detailed (TBD). These scripts can also be compiled as root if needed.
 
-	%> cd <CodeEasy dir>/src
+	%> cd <P4 Flex dir>/demo
 	%> make all
 
 	This should build 'sur' and 'fast_chown' executables.  To clean and re-try
@@ -288,8 +428,8 @@ command does not work, then CeChownFile.pl will not work either.
 	flexclone directory and file ownership from the Daemon (aka build user)
 	ownership to the new users ownership.
 
-    Step #5: Create a Snapshot called ce_test_snap_01
-	%> ./CeCreateSnapshot.pl -snapshot project_A_snap_20150811
+    Step #5: Create a Snapshot called project_A_snap_20150811
+	%> p4 flex snapshot -V jenkin_build project_A_snap_20150811
 
 	There should now be a new snapshot at /ce_projects/project_A/jenkin_build/.snapshot/project_A_snap_20150811
 
@@ -305,7 +445,7 @@ command does not work, then CeChownFile.pl will not work either.
 
     Step #1: Create a FlexClone based on the Snapshot created in step #5
 
-	%> ./CeCreateFlexClone.pl  -snapshot project_A_snap_20150811 -clone project_A_snap_20150811_clone
+	%> p4 flex clone -V jenkins_build -S project_A_snap_20150811 project_A_snap_20150811_clone
 
 	There should now be a FlexClone volume mounted at UNIX path /ce_projects/project_A/users/<USER>/project_A_snap_20150811_clone
 	Note that the permissions at this point on the files and directories are
@@ -354,7 +494,7 @@ directories.
 
 Since there are potentially millions of files and directories in the volume,
 the time to 'chown' the volume can be quite significant - potentially hours.
-The CodeEasy Toolkit contains optimized scripts for speeding up the process
+The P4 Flex Toolkit contains optimized scripts for speeding up the process
 of chown'ing the files.  The first speed up comes from the use of fast_chown.c
 which uses lchown which runs faster then conventional UNIX chown.  Second the
 process of finding the files to chown has been split from the process of
@@ -387,12 +527,12 @@ file
     # this will enable user to run command without requiring a password.
     devops  ALL=(ALL) NOPASSWD: ALL
 
-The sur.c program command is a script which is provided by the CodeEasy Toolkit
+The sur.c program command is a script which is provided by the P4 Flex Toolkit
 to enable a normal user to switch to user 'devops' to run commands like
 creating a flex clone or chowning a volume.  The compiled program 'sur'
 essentially does a 'setuid' then runs the called script.  
 Example:
-    %jmichae1> ~jmichae1/CodeEasy/src/sur devops CeChownList.pl -d $PWD -u jmichae1
+    %jmichae1> ~jmichae1/P4 Flex/src/sur devops CeChownList.pl -d $PWD -u jmichae1
 
 In the above example sur will setuid to user devops, then call the
 CeChownList.pl script to chown the files to user jmichae1.  Note that the UNIX

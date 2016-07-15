@@ -2,7 +2,7 @@
 # Example Project Structure used in the QuickStart example.
 ############################################################
 This document trys to describe how the example project is layed out from a UNIX point
-of view, then from a cDOT filer point of view and finally the cDOT junction
+of view, then from a ONTAP filer point of view and finally the ONTAP junction
 paths.  
 
 It is important to take time to create a map like this for your specific
