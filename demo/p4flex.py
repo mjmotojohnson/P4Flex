@@ -892,6 +892,9 @@ class Broker:
         for line in lines:
             parts = line.split(": ")
             self.args[parts[0]] = parts[1].rstrip()  
+
+            # uncomment for debug - displays list of args passed to broker
+	    #logging.debug("DEBUG: def init broker: args = %s %s", parts[0], self.args[parts[0]])
     
     def getP4(self):
         p4 = P4()
@@ -1149,7 +1152,7 @@ class Flex:
     # Create/Delete Snapshot
     #---------------------------------------  
     def snapshot(self):
-	logging.debug("DEBUG: def snapsho: sub routine called")
+	logging.debug("DEBUG: def snapshot: sub routine called")
 
         #--NetApp/Perforce connection as Flex
         netapp = NaFlex()
@@ -1163,6 +1166,7 @@ class Flex:
 
 
         from_client_name = self.call.getClient()
+        from_client_name = "jenkins_builds"
 	logging.debug("DEBUG 1: from_client_name = %s\n", from_client_name)
         for o in self.opts:
             if o.startswith('-V'):
@@ -1171,6 +1175,7 @@ class Flex:
 		# delete snapshot function
                 snapshot_name = o[2:]
                 self.snap_del(volume_name, snapshot_name)
+	        logging.debug("DEBUG: def snap_del:delete snapshot routine called")
                 return 
             if o.startswith('-c'):
                 from_client_name = o[2:]
@@ -1240,6 +1245,7 @@ class Flex:
 #MJ_MOD
         # Create Perforce workspace for snapshot
         try:  
+            logging.debug("DEBUG: def snapshot: snapshot_name = %s\n", snapshot_name)
             from_client = p4.fetch_client(from_client_name)
             root = from_client['Root']
             logging.debug("DEBUG: def snapshot: root = %s\n", root)
@@ -1247,6 +1253,7 @@ class Flex:
             # Clone client workspace
             flex_client_name = FLEX_SNAP + volume_name + ':' + snapshot_name
             p4.client = flex_client_name
+            logging.debug("DEBUG: def snapshot: flex_client_name = %s\n", flex_client_name)
             flex_client = p4.fetch_client("-t", from_client_name, flex_client_name)
             logging.debug("DEBUG: def snapshot: flex_client_name = %s\n", flex_client_name)
             
@@ -1254,13 +1261,17 @@ class Flex:
             path = netapp.mount_base + "/" + volume_name
             flex_client['Root'] = path
             flex_client['Host'] = ""
-            logging.debug("DEBUG: def snapshot: flex_client['Root'] = %s\n", path)
+            logging.debug("DEBUG: def snapshot: blah flex_client['Root'] = %s\n", path)
  
             #flex_client['Options'] = flex_client['Options'].replace(" unlocked", " locked")
+            logging.debug("DEBUG: def snapshot: p4.save_client flex_client - start\n")
+
             p4.save_client(flex_client)
+            logging.debug("DEBUG: def snapshot: p4.save_client flex_client - done\n")
             
             # Populate have list
             p4.run_sync("-k", "//" + flex_client_name + "/...@" + from_client_name)
+            logging.debug("DEBUG: def snapshot: p4.run_sync \n");
             
             print("action: RESPOND")
             print("message: \"Created flex snapshot %s\"" % snapshot_name)
@@ -1647,20 +1658,40 @@ class Flex:
 
 	    # check exit status
             if exit_msg == "":
-		print("action: RESPOND")
 		message += "INFO: Successfully deleted snapshot %s\n" % snapshot_name
-		print("message: \"%s\"" % message)
 	    else:
 		print("action: REJECT")
 		message += exit_msg
 		print("message: \"%s\"" % message)
-    
+
+        except NAException as e:
+            print("action: REJECT")
+            message += '\nNetApp Error: ' + e.error
+            print("message: \"%s\"" % message)
+            return
+        except Exception as e:
+            print("action: REJECT")
+            message += '\nUnexpected error: ' + str(e)
+            print("message: \"%s\"" % message)
+            return
+
+        # Delete Perforce workspaces
+        try:
+            client_name = FLEX_SNAP + volume_name + ":" + snapshot_name
+            p4.run_client("-f", "-d", client_name)
+	    logging.debug("DEBUG: def snap_del: delete client_name = %s\n", client_name)
+
+            print("action: RESPOND")
+            message += "Deleted snapshot %s\n" % snapshot_name
+            print("message: \"%s\"" % message)
+
         except P4Exception:
             print("action: RESPOND")
             error = '\n'.join(p4.errors)
             error += '\n'.join(p4.warnings)
-	    message += error
-            print("message: \"%s\"" % message)            
+        finally:
+            p4.disconnect()
+    
 
             
     #---------------------------------------  
