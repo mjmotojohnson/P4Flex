@@ -19,6 +19,9 @@ import pwd
 import sys
 import subprocess
 import getpass
+import logging
+logging.basicConfig(filename='p4flex.py.log',level=logging.DEBUG)
+logging.debug('starting p4flex.ply')
 
 from P4 import P4, P4Exception
 
@@ -27,7 +30,7 @@ from P4 import P4, P4Exception
 #---------------------------------------- 
 # the NMSDK can be downloaded from www.support.netapp.com
 # installation path    ***** CUSTOMIZE ME *****
-sys.path.append("/usr/local/lib/netapp-manageability-sdk-5.3.1/lib/python/NetApp")
+sys.path.append("/usr/local/lib/netapp-manageability-sdk-5.5/lib/python/NetApp")
 from NaServer import *
 
 
@@ -853,6 +856,8 @@ class NAException(Exception):
 
 # ---------------------------------------------------------------------------
 # Perforce connection as 'flex' user
+# this user is specified in the p4flex.cfg file.  Only this user can create/remove
+# volumes and snapshots.
 # ---------------------------------------------------------------------------
 class P4Flex:
     def __init__(self):
@@ -1144,8 +1149,9 @@ class Flex:
     # Create/Delete Snapshot
     #---------------------------------------  
     def snapshot(self):
+	logging.debug("DEBUG: def snapsho: sub routine called")
 
-        # NetApp/Perforce connection as Flex
+        #--NetApp/Perforce connection as Flex
         netapp = NaFlex()
         p4 = P4Flex().getP4()
 
@@ -1157,6 +1163,7 @@ class Flex:
 
 
         from_client_name = self.call.getClient()
+	logging.debug("DEBUG 1: from_client_name = %s\n", from_client_name)
         for o in self.opts:
             if o.startswith('-V'):
                 volume_name = o[2:]
@@ -1169,6 +1176,8 @@ class Flex:
                 from_client_name = o[2:]
             else:
                 snapshot_name = o
+
+	logging.debug("DEBUG: def snapshot: from_client_name = %s\n", from_client_name)
                 
         if not volume_name:
             print("action: REJECT")
@@ -1228,6 +1237,40 @@ class Flex:
             message += '\nNetApp Error: ' + e.error
             print("message: \"%s\"" % message)
               
+#MJ_MOD
+        # Create Perforce workspace for snapshot
+        try:  
+            from_client = p4.fetch_client(from_client_name)
+            root = from_client['Root']
+            logging.debug("DEBUG: def snapshot: root = %s\n", root)
+            
+            # Clone client workspace
+            flex_client_name = FLEX_SNAP + volume_name + ':' + snapshot_name
+            p4.client = flex_client_name
+            flex_client = p4.fetch_client("-t", from_client_name, flex_client_name)
+            logging.debug("DEBUG: def snapshot: flex_client_name = %s\n", flex_client_name)
+            
+            # Set workspace options: root to mounted volume
+            path = netapp.mount_base + "/" + volume_name
+            flex_client['Root'] = path
+            flex_client['Host'] = ""
+            logging.debug("DEBUG: def snapshot: flex_client['Root'] = %s\n", path)
+ 
+            #flex_client['Options'] = flex_client['Options'].replace(" unlocked", " locked")
+            p4.save_client(flex_client)
+            
+            # Populate have list
+            p4.run_sync("-k", "//" + flex_client_name + "/...@" + from_client_name)
+            
+            print("action: RESPOND")
+            print("message: \"Created flex snapshot %s\"" % snapshot_name)
+            
+        except P4Exception:
+            print("action: RESPOND")
+            error = '\n'.join(p4.errors)
+            error += '\n'.join(p4.warnings)
+            print("message: \"%s\"" % error)
+ 
         finally:
             p4.disconnect()
 
@@ -1351,6 +1394,7 @@ class Flex:
         
         # NetApp/Perforce connection as Caller
         netapp = NaFlex()
+        p4 = self.call.getP4()
 
 
 	#--------------------------------------- 
@@ -1375,11 +1419,16 @@ class Flex:
 	if not junction_path:
 	    junction_path = netapp.mount_users + "/" + clone_owner + "/" + cname 
 
+        # not always true - but for now, lets assume they are the same.
+	unix_path = junction_path;
+
 	# create banner message
 	message  = self.print_banner()
 
 
+	#---------------------------------------- 
         # Create NetApp clone from snapshot
+	#---------------------------------------- 
         try:
 	    # call subroutine to create flexclone on the filer
             exit_msg = netapp.clone_create(cname, sname, vname, junction_path)
@@ -1400,9 +1449,63 @@ class Flex:
             error += '\nNetApp Error: ' + e.error
 	    message += error
             print("message: \"%s\"" % message)
-              
+
+	#---------------------------------------- 
+	# p4 config setup for new clone
+	#---------------------------------------- 
+# MJ_ADD_CODE_CLONE              
         try:  
-	    # Set file ownership
+            # Verify parent client exists
+            parent_client_name = FLEX_SNAP + vname + ":" + sname
+            logging.debug("DEBUG: def clone: parent_client_name = %s\n", parent_client_name)
+
+            list = p4.run_clients("-e", parent_client_name)
+            if len(list) != 1:
+                print("action: REJECT")
+                print("message: \"Flex parent %s does not exist.\"" % parent_client_name)
+                return
+                        
+            # Clone client workspace
+            clone_client_name = FLEX_CLONE + cname
+            logging.debug("DEBUG: def clone: clone_client_name = %s\n", clone_client_name)
+
+            p4.client = clone_client_name
+            clone_client = p4.fetch_client("-t", parent_client_name, clone_client_name)
+            clone_client['Root'] = unix_path
+            #clone_client['Options'] = clone_client['Options'].replace(" unlocked", " locked")
+            p4.save_client(clone_client)
+            
+            # Generate P4CONFIG file
+            logging.debug("DEBUG: def clone: unix_path = %s\n", unix_path)
+            self.p4config(unix_path, clone_client_name)
+        
+            # Populate have list
+            p4.run_sync("-k", "//" + clone_client_name + "/...@" + parent_client_name)
+            
+            # Set file ownership
+            user = self.call.getUser()
+            self.chown(user, unix_path)
+        
+            msg = clone_client_name + ". Mounted on " + unix_path + "."
+            print("action: RESPOND")
+            message += "Created flex clone client %s\n" % msg 
+            print("message: \"%s\"" % message)
+        
+        except P4Exception:
+            print("action: RESPOND")
+            error = '\n'.join(p4.errors)
+            error += '\n'.join(p4.warnings)
+	    message += error
+            print("message: \"%s\"" % message)
+            
+        finally:
+            p4.disconnect()
+
+              
+	#---------------------------------------- 
+	# Set file ownership
+	#---------------------------------------- 
+        try:  
 	    chown_cmd_string = self.chown(clone_owner, junction_path)
 	    message += "\nINFO: To change flexclone ownership to user <%s>\n" % str(clone_owner)
 	    message +=   "      execute the following command:\n"
@@ -1675,8 +1778,11 @@ class Flex:
         p4config = os.getenv('P4CONFIG', '.p4config')
         p4port = self.call.getPort()
         p4user = self.call.getUser()
+        p4config_file = path + "/" + p4config
         
-        fh = open(path + "/" + p4config, "w")
+        logging.debug("DEBUG: def p4config_file: open for writing = %s\n", p4config_file)
+        #fh = open(path + "/" + p4config, "w")
+        fh = open(p4config_file, "w")
         fh.write("# Generated by p4 flex.\n");
         fh.write("P4PORT=" + p4port + "\n");
         fh.write("P4USER=" + p4user + "\n");
