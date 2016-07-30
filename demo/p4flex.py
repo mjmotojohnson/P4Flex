@@ -259,13 +259,13 @@ class NaFlex:
 	# check to verify that the volume and snapshot exist before cloning
 	if not self.volume_exists(pvolname):
 	    print("action: REJECT")
-	    print("message: ERROR volume <\"%s\"> does not exist\n" % pvolname)
+	    print("message: ERROR: volume \'%s\' does not exist\n" % pvolname)
 	    return
 
 	# check to verify that the volume and snapshot exist before cloning
 	if not self.snapshot_exists(pvolname, psnapname):
 	    print("action: REJECT")
-	    print("message: ERROR snapshot <\"%s\"> does not exist\n" % psnapname)
+	    print("message: ERROR: Snapshot \'%s\' does not exist\n" % psnapname)
 	    return
 
         api = NaElement("volume-clone-create")
@@ -1075,7 +1075,7 @@ class Flex:
             netapp.volume_create(vname, size, junction_path, uid, gid)
 
             # Set file ownership of newly created volume.
-            #self.chown(user, junction_path)
+            self.chown(user, junction_path)
 
             print("action: RESPOND")
 	    message += "INFO: Successfully created volume " + vname + "\n"
@@ -1182,6 +1182,9 @@ class Flex:
             else:
                 snapshot_name = o
 
+        message += "INFO:  Create Snapshot %s " % snapshot_name
+        message += "on Volume %s\n" % volume_name
+
 	logging.debug("DEBUG: def snapshot: from_client_name = %s\n", from_client_name)
                 
         if not volume_name:
@@ -1214,12 +1217,19 @@ class Flex:
 	#           print("message: \"%s\"" % message)
 	#           return        
 
-        # check to verify that the volume and snapshot exist before cloning
-        if (netapp.snapshot_exists(volume_name, snapshot_name) == True):
-            print("action: REJECT")
-	    message += "ERROR snapshot <\"%s\"> already exists.\n" % snapshot_name
+        # Create NetApp snapshot
+        try:
+            # check to verify that the volume and snapshot exist before cloning
+            if (netapp.snapshot_exists(volume_name, snapshot_name) == True):
+                print("action: REJECT")
+                message += "ERROR: Snapshot \"%s\" already exists.\n" % snapshot_name
+                print("message: \"%s\"" % message)
+                return
+        except NAException as e:
+            print("action: RESPOND")
+            message += '\nNetApp Error: ' + e.error
             print("message: \"%s\"" % message)
-            return
+     
         
         
         # Create NetApp snapshot
@@ -1261,7 +1271,7 @@ class Flex:
             path = netapp.mount_base + "/" + volume_name
             flex_client['Root'] = path
             flex_client['Host'] = ""
-            logging.debug("DEBUG: def snapshot: blah flex_client['Root'] = %s\n", path)
+            logging.debug("DEBUG: def snapshot: flex_client['Root'] = %s\n", path)
  
             #flex_client['Options'] = flex_client['Options'].replace(" unlocked", " locked")
             logging.debug("DEBUG: def snapshot: p4.save_client flex_client - start\n")
@@ -1466,6 +1476,7 @@ class Flex:
 	#---------------------------------------- 
 # MJ_ADD_CODE_CLONE              
         try:  
+	    message += "INFO: p4 config setup for new FlexClone \n"
             # Verify parent client exists
             parent_client_name = FLEX_SNAP + vname + ":" + sname
             logging.debug("DEBUG: def clone: parent_client_name = %s\n", parent_client_name)
@@ -1491,26 +1502,16 @@ class Flex:
             self.p4config(unix_path, clone_client_name)
         
             # Populate have list
-            p4.run_sync("-k", "//" + clone_client_name + "/...@" + parent_client_name)
-            
-            # Set file ownership
-            user = self.call.getUser()
-            self.chown(user, unix_path)
-        
-            msg = clone_client_name + ". Mounted on " + unix_path + "."
-            print("action: RESPOND")
-            message += "Created flex clone client %s\n" % msg 
-            print("message: \"%s\"" % message)
-        
+            #p4.run_sync("-k", "//" + clone_client_name + "/...@" + parent_client_name)
+            logging.debug("DEBUG: def clone: p4.run_sync \n")
+	    message += "INFO: p4 config setup complete. \n"
+
         except P4Exception:
             print("action: RESPOND")
             error = '\n'.join(p4.errors)
             error += '\n'.join(p4.warnings)
 	    message += error
             print("message: \"%s\"" % message)
-            
-        finally:
-            p4.disconnect()
 
               
 	#---------------------------------------- 
@@ -1558,6 +1559,8 @@ class Flex:
 	cmd_line += " -f "    + junction_path + "/filelist_BOM"
 
 	#subprocess.call(" "+cmd_line, shell=True )
+        logging.debug("DEBUG: def chown: run cmd = %s \n", cmd_line)
+
 	return cmd_line
 
 
@@ -1621,6 +1624,8 @@ class Flex:
         p4 = P4Flex().getP4()
 
 	message  = self.print_banner()
+        message += "INFO:  Delete Snapshot: \'%s\' " % snapshot_name
+        message += "on Volume: \'%s\'\n" % volume_name
 
 	# check that volume and snapshot names were passed to this function
         if not volume_name:
@@ -1639,14 +1644,14 @@ class Flex:
 	# check to verify that the volume and snapshot exist before cloning
 	if not netapp.volume_exists(volume_name):
 	    print("action: REJECT")
-            message += "ERROR volume <\"%s\"> does not exist\n" % volume_name
+            message += "\nERROR: Volume \'%s\' does not exist.\n" % volume_name
             print("message: \"%s\"" % message)
 	    return
 
 	# check to verify that the volume and snapshot exist before cloning
 	if not (netapp.snapshot_exists(volume_name, snapshot_name) == True):
 	    print("action: REJECT")
-            message += "ERROR snapshot <\"%s\"> does not exist\n" % snapshot_name
+            message += "\nERROR: Snapshot \'%s\' does not exist.\n" % snapshot_name
             print("message: \"%s\"" % message)
 	    return
     
@@ -1687,8 +1692,9 @@ class Flex:
 
         except P4Exception:
             print("action: RESPOND")
-            error = '\n'.join(p4.errors)
-            error += '\n'.join(p4.warnings)
+            message += '\n'.join(p4.errors)
+            message += '\n'.join(p4.warnings)
+            print("message: \"%s\"" % message)
         finally:
             p4.disconnect()
     
@@ -1700,6 +1706,7 @@ class Flex:
     def clone_delete(self, cname):               
 
 	message  = self.print_banner()
+        message += "INFO:  Delete FlexClone %s \n" % cname
 
         if not cname:
             print("action: REJECT")
@@ -1707,16 +1714,25 @@ class Flex:
 	    print("message: \"%s\"" % message)
             return
 
-	# MJ_DEBUG: add clone name checking function
-        ## verify that the flexclone exists before trying to delete it
-        #if not netapp.volume_exists(volume_name):
-        #    print("action: REJECT")
-        #    print("message: ERROR flexclone volume <%s> does not exist\n" % volume_name)
-        #    return
-        
         # NetApp/Perforce connection as Caller
         netapp = NaFlex()
-        #p4 = self.call.getP4()
+        p4 = self.call.getP4()
+
+        # verify that the flexclone exists before trying to delete it
+        try:
+	    # MJ_DEBUG: add clone name checking function
+            if not netapp.volume_exists(cname):
+                print("action: REJECT")
+                message += "ERROR: Flexclone volume <%s> does not exist.\n" % cname
+                print("message: \"%s\"" % message)
+                return
+
+        except NAException as e:
+            print("action: REJECT")
+            message += '\nNetApp Error: ' + e.error
+            print("message: \"%s\"" % message)
+            return
+        
         
         # If client delete succeed, Delete NetApp clone
         try:
@@ -1727,9 +1743,7 @@ class Flex:
         
         except NAException as e:
             print("action: REJECT")
-	    error  = self.print_banner()
-            error += '\nNetApp Error: ' + e.error
-	    message += error
+            message += '\nNetApp Error: ' + e.error
             print("message: \"%s\"" % message)
             return
         
@@ -1740,6 +1754,24 @@ class Flex:
             print("message: \"%s\"" % message)
             return
             
+        # Delete Perforce workspace
+        try:  
+            client_name = FLEX_CLONE + cname
+            p4.run_client("-d", client_name)
+            message += "INFO: Deleted Flexclone %s\n" %cname
+            
+            print("action: RESPOND")
+            print("message: \"%s\"" % message)
+            
+        except P4Exception:
+            print("action: REJECT")
+            message += '\n'.join(p4.errors)
+            message += '\n'.join(p4.warnings)
+            print("message: \"%s\"" % message)
+            return
+            
+        finally:
+            p4.disconnect()
             
     #---------------------------------------  
     # delete volume
