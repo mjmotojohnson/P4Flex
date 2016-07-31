@@ -1,6 +1,26 @@
 ################################################################################
 # P4 Flex Release Notes
 ################################################################################
+v1.2.0 (2016-07-30)
+- Added back p4 client registration and p4 run_sync -k functionality removed
+  in the MERGE demo version.
+- Added logging to enable easier debug tracing.  Logging verbosity is easily 
+  controlled by setting verbosity level at the bigging of the program.
+- Perforce permission controls commented out. This can be enable as needed.  
+- Disabled chown functionality.  Chown functionality from ONTAP 9 will be added
+  in the next version.  For now the program writes information on how to 
+  execute the chown functionality if needed.
+- Added ONTAP and ONTAP API version information in banner.
+- Added -test option to exit after testing the connection to the filer
+- Added significant error checking.  The script now tests for the existence or 
+  non-existence of volumes, snapshots and clones before making filer calls.  This 
+  ensures the user gets a nice understandable message out instead of an exception 
+  from the filer like was the case in initial version.  The output of initial 
+  version was horrible since when an error occurred, Python tossed out trace-back 
+  information which make user input error look like a coding problem.  The new 
+  version is much more robust to bad user input.
+- Additional comments to help make the code more readable and debug-able.
+
 
 v1.1.0 (2016-05-11)
 First major release since P4 Flex was first uploaded to Perforce Swarm as a

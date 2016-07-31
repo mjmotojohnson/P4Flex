@@ -125,6 +125,7 @@ class NaFlex:
 	# set communication port
         s.set_port(self.port)
 
+
 	# return storage object
 	return s
 
@@ -239,7 +240,7 @@ class NaFlex:
             snapshot_list = snapshotlist.children_get()
             for ss in snapshot_list:
                 sname = ss.child_get_string("name")
-                #print("snapshot:%s" % (sname))
+
 		if snapshot_name == sname:
 		    # snapshot exists, return True
 		    return True
@@ -373,27 +374,6 @@ class NaFlex:
         if (xo.results_status() == "failed"):
             raise NAException(xo.sprintf())
     
-
-    #--------------------------------------- 
-    # Reports the list of volumes 
-    #--------------------------------------- 
-    def volume_list(self):
-	vol_list = []
-
-	# for each volume element
-	for tattr in self.vGetcDOTList("volume-get-iter"):
-	    print "hello"
-	    #tattr.sprintf()
-	    # get the volume id attrbutes
-	    vol_id_attrs = tattr.child_get("volume-id-attributes")
- 
-	    # get the volume name
-	    if vol_id_attrs:
-		vol_list += vol_id_attrs-child_get_string("name")
-
-	#return vol_list
-	return "hello"
-
 
     #--------------------------------------- 
     # Reports the list of volumes 
@@ -1126,12 +1106,55 @@ class Flex:
     def print_banner(self):
         netapp = NaFlex()
 
+
+        # test connection to the filer and report ONTAP version
+	#output = netapp.get().invoke("system-get-version")
+	api = NaElement("system-get-version")
+        output = netapp.get().invoke_elem(api)
+        if(output.results_errno() != 0):
+           r = output.results_reason()
+           logging.debug("Failed: \n" + str(r))
+
+        ontap_version = output.child_get_string("version")
+        logging.debug("DEBUG: system-get-version = %s" % ontap_version)
+
+        # report ONTAP API version
+	#output = netapp.get().invoke("system-get-ontapi-version")
+	api = NaElement("system-get-ontapi-version")
+        output = netapp.get().invoke_elem(api)
+        if(output.results_errno() != 0):
+           r = output.results_reason()
+           logging.debug("Failed: \n" + str(r))
+
+        ontap_api_major_version = output.child_get_string("major-version")
+        ontap_api_minor_version = output.child_get_string("minor-version")
+        ontap_api_version       = "%s.%s" % (ontap_api_major_version, ontap_api_minor_version)
+        logging.debug("DEBUG: system-get-ontapi-version = %s" % ontap_api_version)
+
+        # display program banner
 	banner  = "------------------------------------------------------------\n"
 	banner += "Perforce/NetApp P4FlexClone Broker\n"
 	banner += "------------------------------------------------------------\n\n"
 	banner += "INFO: Successfully connected to NetApp filer\n"
-	banner += "      Cluster I/F: %s \n"   % netapp.server
-	banner += "      SVM:         %s \n\n" % netapp.vserver
+	banner += "      Cluster I/F:       %s \n"   % netapp.server
+	banner += "      SVM:               %s \n"   % netapp.vserver
+	banner += "      ONTAP version:     %s \n"   % ontap_version
+	banner += "      ONTAP API version: %s \n\n" % ontap_api_version
+
+        # see if -test was passed on the command line
+        test_connection = False
+        for o in self.opts:
+            if o.startswith('-test'):
+                test_connection = True
+
+        # if running in test only mode, exit
+        if (test_connection == True):
+            print("action: RESPOND")
+            message  = banner
+	    message += "INFO: Successfully tested connection to the filer.\n"
+            message += "      Exiting test only mode...\n"
+            print("message: \"%s\"" % message) 
+
 
 	return banner
 
@@ -1349,6 +1372,7 @@ class Flex:
         try:  
             print("action: RESPOND")
 	    list  = self.print_banner()
+            list += "                    Snapshot Listing\n"
             list += "%-40s     Snapshot Name\n"          % "Volume Name"
             list += "%-40s     --------------------\n" % "--------------------"
             for s in sslist:
